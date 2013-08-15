@@ -1,0 +1,1 @@
+Cilender (CInder + bLENDER) is a c++ library designed to mirror the data structure of Blender for use in Cinder projects.
