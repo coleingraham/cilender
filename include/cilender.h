@@ -28,9 +28,11 @@ public:
     void addJSONMaterial(std::string filename);
     void addJSONMesh(std::string filename);
     void addJSONObject(std::string filename);
+
+    void cleanup();
 };
 
-extern Cilender blend;
+extern Cilender data;
 
 }
 
