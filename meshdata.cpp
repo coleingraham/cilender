@@ -56,6 +56,40 @@ MeshData *MeshData::loadJSON(std::string fileName)
                     );
     }
 
+    const Json::Value skey = root["shapekeys"];
+    if(skey.size() > 0)
+    {
+        std::map< std::string, std::vector< ci::Vec3f > > shapekeys;
+        for(int i=0; i<skey.size(); i++)
+        {
+            std::string key = skey[i].get("name","").asString();
+            std::vector< ci::Vec3f > value;
+
+            for(int j=0; j<skey[i]["verts"].size(); j++)
+            {
+                value.push_back(
+                            ci::Vec3f(
+                                skey[i]["verts"][j].get("x",0.0).asFloat(),
+                            skey[i]["verts"][j].get("y",0.0).asFloat(),
+                        skey[i]["verts"][j].get("z",0.0).asFloat()
+                        )
+                        );
+            }
+            shapekeys[key] = value;
+        }
+
+        mesh->shapekeys = shapekeys;
+
+        const Json::Value skeyVal = root["shapekeyValues"];
+        std::map< std::string, float > shapekeyValues;
+        for(int i=0; i<skeyVal.size(); i++)
+        {
+            shapekeyValues[skeyVal[i].get("name","").asString()] = skeyVal[i].get("value",0.0).asFloat();
+        }
+
+        mesh->shapekeyValues = shapekeyValues;
+    }
+
     std::vector< std::vector< int > > faces;
     const Json::Value face = root["faces"];
     for(int i=0; i<face.size(); i++)
@@ -81,6 +115,28 @@ MeshData *MeshData::loadJSON(std::string fileName)
                     );
     }
 
+    const Json::Value uv = root["faceUVs"];
+    if(uv.size() > 0)
+    {
+        std::vector< std::vector< ci::Vec2f > > faceUVs;
+        for(int i=0; i<uv.size(); i++)
+        {
+            std::vector< ci::Vec2f > uvs;
+            for(int j=0; j<uv[i].size(); j++)
+            {
+                uvs.push_back(
+                            ci::Vec2f(
+                                uv[i][j].get("x",0.0).asFloat(),
+                                uv[i][j].get("y",0.0).asFloat()
+                                )
+                            );
+            }
+            faceUVs.push_back(uvs);
+        }
+        mesh->faceUVs = faceUVs;
+    }
+
+
     std::vector< std::string > mat;
     const Json::Value matName = root["materials"];
     for(int i=0; i<matName.size(); i++)
@@ -95,23 +151,80 @@ MeshData *MeshData::loadJSON(std::string fileName)
     mesh->faceNormals = faceNormals;
     mesh->materials = mat;
 
-    // add faceUVs, shapekeys, later
-
     return mesh;
 }
 
 void MeshData::drawMesh()
 {
-    cilender::data.materials[ materials[0] ]->material.apply();
+    drawMesh(true);
+}
+
+void MeshData::drawMesh(bool useMaterial)
+{
+    if(useMaterial)
+    {
+        cilender::data.materials[ materials[0] ]->material.apply();
+        cilender::data.textures[ cilender::data.materials[ materials[0] ]->textures[0] ]->texture.bind(0);
+    }
 
     for(int i=0; i<faces.size(); i++)
     {
         ci::gl::begin(GL_POLYGON);
         for(int j=0; j<faces[i].size(); j++)
         {
+            if(faceUVs.size() > 0)
+            {
+                glTexCoord2f( faceUVs[i][j].x, faceUVs[i][j].y );
+            }
             ci::gl::vertex(verticies[ faces[i][j] ] );
         }
 
         ci::gl::end();
+    }
+
+    if(useMaterial)
+    {
+        cilender::data.textures[ cilender::data.materials[ materials[0] ]->textures[0] ]->texture.unbind(0);
+    }
+}
+
+void MeshData::setShapeKeyValue(std::string key, float value)
+{
+    shapekeyValues[key] = value;
+}
+
+void MeshData::updateShapeKeys()
+{
+    // reset our verticies to Basis first
+    for(int i=0; i<verticies.size(); i++)
+    {
+        verticies[i].set(shapekeys["Basis"][i]);
+    }
+
+    float weightScale = 0.0;
+
+    for(std::map< std::string, float >::iterator it = shapekeyValues.begin(); it != shapekeyValues.end(); ++it)
+    {
+        if(it->first == "Basis") { continue; }
+
+        weightScale += it->second;
+    }
+
+    weightScale = 1/weightScale;
+
+    for(std::map< std::string, std::vector< ci::Vec3f > >::iterator it = shapekeys.begin(); it != shapekeys.end(); ++it)
+    {
+        if(it->first == "Basis") { continue; }
+
+        for(int i=0; i<shapekeys[it->first].size(); i++)
+        {
+            if(shapekeyValues[it->first] > 0.0)
+            {
+                if(shapekeys[it->first][i] != shapekeys["Basis"][i])
+                {
+                    verticies[i].lerpEq(shapekeyValues[it->first] * weightScale, shapekeys[it->first][i] );
+                }
+            }
+        }
     }
 }

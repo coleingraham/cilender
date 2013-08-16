@@ -27,7 +27,11 @@ public:
 
     static MeshData* loadJSON(std::string fileName);
 
+    void drawMesh(bool useMaterial);
     void drawMesh();
+
+    void setShapeKeyValue(std::string key, float value);
+    void updateShapeKeys();
 };
 
 }
